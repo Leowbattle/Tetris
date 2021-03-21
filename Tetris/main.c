@@ -41,8 +41,14 @@ void drawStringf(struct DrawStringInfo* dsi, const char* fmt, ...);
 
 #define BLOCK_SIZE 40
 
-#define WIDTH (BLOCKS_X * BLOCK_SIZE)
-#define HEIGHT (BLOCKS_Y * BLOCK_SIZE)
+#define BOARD_WIDTH (BLOCKS_X * BLOCK_SIZE)
+#define BOARD_HEIGHT (BLOCKS_Y * BLOCK_SIZE)
+
+#define WINDOW_WIDTH (BOARD_WIDTH * 2)
+#define WINDOW_HEIGHT BOARD_HEIGHT
+
+#define BOARD_LEFT ((WINDOW_WIDTH - BOARD_WIDTH) / 2)
+#define BOARD_RIGHT (BOARD_LEFT + BOARD_WIDTH)
 
 struct BlockRotation {
 	bool vals[4][4];
@@ -268,19 +274,21 @@ const struct BlockDef BLOCKS[NUM_BLOCKS] = {
 	},
 };
 
+enum PieceType {
+	O_PIECE = 0,
+	I_PIECE = 1,
+	T_PIECE = 2,
+	L_PIECE = 3,
+	J_PIECE = 4,
+	S_PIECE = 5,
+	Z_PIECE = 6,
+};
+
 struct CurrentBlock {
 	int x;
 	int y;
 
-	enum {
-		O_PIECE = 0,
-		I_PIECE = 1,
-		T_PIECE = 2,
-		L_PIECE = 3,
-		J_PIECE = 4,
-		S_PIECE = 5,
-		Z_PIECE = 6,
-	} type;
+	enum PieceType type;
 
 	int rotation;
 
@@ -349,8 +357,8 @@ int main() {
 		"Tetris",
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
-		WIDTH,
-		HEIGHT,
+		WINDOW_WIDTH,
+		WINDOW_HEIGHT,
 		0);
 
 	renderer = SDL_CreateRenderer(
@@ -450,8 +458,8 @@ void GAME_PAUSED_draw() {
 		struct DrawStringInfo dsi = {
 			.font = font_big,
 			.colour = {0xff, 0xff, 0xff, 0xff},
-			.x = WIDTH / 2,
-			.y = HEIGHT / 2,
+			.x = BOARD_LEFT + BOARD_WIDTH / 2,
+			.y = BOARD_HEIGHT / 2,
 			.alignX = TEXT_ALIGN_CENTRE,
 			.alignY = TEXT_ALIGN_CENTRE,
 		};
@@ -461,8 +469,8 @@ void GAME_PAUSED_draw() {
 		struct DrawStringInfo dsi = {
 			.font = font_big,
 			.colour = {0xff, 0xff, 0xff, 0xff},
-			.x = WIDTH / 2,
-			.y = HEIGHT / 2,
+			.x = BOARD_LEFT + BOARD_WIDTH / 2,
+			.y = BOARD_HEIGHT / 2,
 			.alignX = TEXT_ALIGN_CENTRE,
 			.alignY = TEXT_ALIGN_CENTRE,
 		};
@@ -601,17 +609,9 @@ bool checkResting() {
 	return false;
 }
 
-void selectPiece() {
-	currentBlock.x = BLOCKS_X / 2 - 1;
-	currentBlock.y = 0;
-	currentBlock.rotation = 0;
-
-	int type = rand() % 7;
-
-	currentBlock.type = type;
-}
-
 void checkForLines();
+
+void updatePieceQueue();
 
 void placeCurrent() {
 	blockTimer = blockTimerLength;
@@ -635,6 +635,42 @@ void placeCurrent() {
 	checkForLines();
 
 	selectPiece();
+}
+
+#define QUEUE_LENGTH 4
+enum PieceType pieceQueue[QUEUE_LENGTH];
+
+void selectPiece() {
+	currentBlock.x = BLOCKS_X / 2 - 1;
+	currentBlock.y = 0;
+	currentBlock.rotation = 0;
+
+	static bool usedPieces[7] = { 0 };
+
+	bool allUsed = true;
+	for (int i = 0; i < 7; i++) {
+		if (!usedPieces[i]) {
+			allUsed = false;
+			break;
+		}
+	}
+
+	if (allUsed) {
+		allUsed = false;
+		for (int i = 0; i < 7; i++) {
+			usedPieces[i] = false;
+		}
+	}
+
+	int type;
+	do
+	{
+		type = rand() % 7;
+	} while (usedPieces[type]);
+
+	usedPieces[type] = true;
+
+	currentBlock.type = type;
 }
 
 void removeLine(int y);
@@ -813,7 +849,7 @@ void GAME_RUN_draw() {
 void drawBoard() {
 	for (int i = 0; i < BLOCKS_Y; i++) {
 		for (int j = 0; j < BLOCKS_X; j++) {
-			int x = j * BLOCK_SIZE;
+			int x = BOARD_LEFT + j * BLOCK_SIZE;
 			int y = i * BLOCK_SIZE;
 
 			SDL_Rect rect = { x, y, BLOCK_SIZE, BLOCK_SIZE };
@@ -850,7 +886,7 @@ void drawCurrent() {
 			if (br->vals[i][j]) {
 				SDL_Color colour = block->colour;
 
-				SDL_Rect rect = { x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE };
+				SDL_Rect rect = { BOARD_LEFT + x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE };
 				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
 				SDL_RenderFillRect(renderer, &rect);
 			}
@@ -882,7 +918,7 @@ void drawCurrent() {
 			if (br->vals[i][j]) {
 				SDL_Color colour = { 0xff, 0xff, 0xff, 0xff };
 
-				SDL_Rect rect = { x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE };
+				SDL_Rect rect = { BOARD_LEFT + x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE };
 				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
 				SDL_RenderFillRect(renderer, &rect);
 			}
