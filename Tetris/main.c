@@ -287,6 +287,7 @@ const int placementTimerLength = 1000;
 void update();
 void selectPiece();
 void placeCurrent();
+void dropCurrent();
 bool tryMove();
 
 void draw();
@@ -294,6 +295,14 @@ void draw();
 int time = 0;
 int lastTime = 0;
 int dt = 0;
+
+enum {
+	GAME_RUN
+} gameState;
+
+int keysLen;
+Uint8* keys = NULL;
+Uint8* lastKeys = NULL;
 
 int main() {
 	SDL_Init(SDL_INIT_EVERYTHING);
@@ -323,42 +332,23 @@ int main() {
 			case SDL_QUIT:
 				goto end;
 
-			case SDL_KEYDOWN:
-				switch (e.key.keysym.sym) {
-				case SDLK_LEFT:
-					currentBlock.dx--;
-					break;
-				case SDLK_RIGHT:
-					currentBlock.dx++;
-					break;
-				case SDLK_DOWN:
-					currentBlock.dy++;
-					blockTimer = blockTimerLength;
-					break;
-				case SDLK_SPACE:;
-					bool success;
-					do {
-						currentBlock.dy++;
-						success = tryMove();
-					} while (success);
-					placeCurrent();
-					placementTimer = placementTimerLength;
-					break;
-				case SDLK_r:
-					currentBlock.dr++;
-					break;
-				case SDLK_e:
-					currentBlock.dr--;
-					break;
-
-				default:
-					break;
-				}
-				break;
-
 			default:
 				break;
 			}
+		}
+
+		if (lastKeys == NULL) {
+			Uint8* keys1 = SDL_GetKeyboardState(&keysLen);
+			keys = malloc(keysLen);
+			lastKeys = malloc(keysLen);
+			memset(keys, 0, keysLen);
+			memset(lastKeys, 0, keysLen);
+		}
+		else {
+			memcpy(lastKeys, keys, keysLen);
+
+			Uint8* keys1 = SDL_GetKeyboardState(NULL);
+			memcpy(keys, keys1, keysLen);
 		}
 
 		lastTime = time;
@@ -378,6 +368,59 @@ bool tryRotate();
 bool checkResting();
 
 void update() {
+#define MOVEMENT_TIMER_LENGTH 100
+	if (keys[SDL_SCANCODE_LEFT]) {
+		static int lastLeft = 0;
+
+		if ((time - lastLeft) > MOVEMENT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_LEFT]) {
+			currentBlock.dx--;
+			lastLeft = time;
+		}
+	}
+
+	if (keys[SDL_SCANCODE_RIGHT]) {
+		static int lastRight = 0;
+
+		if ((time - lastRight) > MOVEMENT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_RIGHT]) {
+			currentBlock.dx++;
+			lastRight = time;
+		}
+	}
+	if (keys[SDL_SCANCODE_DOWN]) {
+		static int lastDown = 0;
+
+		if ((time - lastDown) > MOVEMENT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_DOWN]) {
+			currentBlock.dy++;
+			blockTimer = blockTimerLength;
+			lastDown = time;
+		}
+	}
+
+#define ROT_TIMER_LENGTH 250
+	if (keys[SDL_SCANCODE_R]) {
+		static int lastRotR = 0;
+
+		if ((time - lastRotR) > ROT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_R]) {
+			currentBlock.dr++;
+			blockTimer = blockTimerLength;
+			lastRotR = time;
+		}
+	}
+	if (keys[SDL_SCANCODE_E]) {
+		static int lastRotL = 0;
+
+		if ((time - lastRotL) > ROT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_E]) {
+			currentBlock.dr--;
+			blockTimer = blockTimerLength;
+			lastRotL = time;
+		}
+	}
+
+	// The user must press space seperately for each hard drop.
+	if (keys[SDL_SCANCODE_SPACE] && !lastKeys[SDL_SCANCODE_SPACE]) {
+		dropCurrent();
+	}
+
 	blockTimer -= dt;
 	if (blockTimer < 0) {
 		blockTimer = blockTimerLength;
@@ -401,6 +444,16 @@ void update() {
 			placeCurrent();
 		}
 	}
+}
+
+void dropCurrent() {
+	bool success;
+	do {
+		currentBlock.dy++;
+		success = tryMove();
+	} while (success);
+	placeCurrent();
+	placementTimer = placementTimerLength;
 }
 
 bool checkResting() {
@@ -497,7 +550,7 @@ void checkForLines() {
 }
 
 void removeLine(int y) {
-	printf("%d\n", y);
+	//printf("%d\n", y);
 
 	for (int x = 0; x < BLOCKS_X; x++) {
 		board.cells[x][y].solid = false;
