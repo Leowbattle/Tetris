@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdbool.h>
 
 #define SDL_MAIN_HANDLED
@@ -32,7 +33,8 @@ struct DrawStringInfo {
 	enum TextAlignment alignY;
 };
 
-void drawString(const char* msg, struct DrawStringInfo* dsi);
+void drawString(struct DrawStringInfo* dsi, const char* msg);
+void drawStringf(struct DrawStringInfo* dsi, const char* fmt, ...);
 
 #define BLOCKS_X 10
 #define BLOCKS_Y 20
@@ -309,25 +311,35 @@ int blockTimerLength = 1000;
 int placementTimer = 1000;
 const int placementTimerLength = 1000;
 
-void update();
+void GAME_PAUSED_update();
+void GAME_PAUSED_draw();
+
+void GAME_RUN_update();
 void selectPiece();
 void placeCurrent();
 void dropCurrent();
 bool tryMove();
 
-void draw();
+void GAME_RUN_draw();
+void drawBoard();
+void drawCurrent();
 
 int time = 0;
 int lastTime = 0;
 int dt = 0;
 
 enum {
+	GAME_PAUSED,
 	GAME_RUN
-} gameState;
+} gameState = GAME_RUN;
 
 int keysLen;
 Uint8* keys = NULL;
 Uint8* lastKeys = NULL;
+
+bool keyPressed(int scancode) {
+	return keys[scancode] && !lastKeys[scancode];
+}
 
 int main() {
 	SDL_Init(SDL_INIT_EVERYTHING);
@@ -383,19 +395,92 @@ int main() {
 		time = SDL_GetTicks();
 		dt = time - lastTime;
 
-		update();
-		draw();
+		switch (gameState) {
+		case GAME_PAUSED:
+			GAME_PAUSED_update();
+			break;
+		case GAME_RUN:
+			GAME_RUN_update();
+			break;
+		default:
+			printf("Invalid game state\n");
+			exit(-1);
+		}
 	}
 
 end:;
-
 	return 0;
+}
+
+bool unpausing = false;
+int unpauseTimer;
+int unpauseCounter;
+void GAME_PAUSED_update() {
+	if (keyPressed(SDL_SCANCODE_ESCAPE)) {
+		unpausing = true;
+		unpauseTimer = 1000;
+		unpauseCounter = 3;
+	}
+
+	if (unpausing) {
+		unpauseTimer -= dt;
+		if (unpauseTimer <= 0) {
+			unpauseTimer = 1000;
+			unpauseCounter--;
+		}
+
+		if (unpauseCounter <= 0) {
+			gameState = GAME_RUN;
+			unpausing = false;
+			return;
+		}
+	}
+
+	GAME_PAUSED_draw();
+}
+
+void GAME_PAUSED_draw() {
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xff);
+	SDL_RenderClear(renderer);
+
+	drawBoard();
+	drawCurrent();
+
+	if (unpausing) {
+		struct DrawStringInfo dsi = {
+			.font = font_big,
+			.colour = {0xff, 0xff, 0xff, 0xff},
+			.x = WIDTH / 2,
+			.y = HEIGHT / 2,
+			.alignX = TEXT_ALIGN_CENTRE,
+			.alignY = TEXT_ALIGN_CENTRE,
+		};
+		drawStringf(&dsi, "%d", unpauseCounter);
+	}
+	else {
+		struct DrawStringInfo dsi = {
+			.font = font_big,
+			.colour = {0xff, 0xff, 0xff, 0xff},
+			.x = WIDTH / 2,
+			.y = HEIGHT / 2,
+			.alignX = TEXT_ALIGN_CENTRE,
+			.alignY = TEXT_ALIGN_CENTRE,
+		};
+		drawString(&dsi, "Paused");
+	}
+
+	SDL_RenderPresent(renderer);
 }
 
 bool tryRotate();
 bool checkResting();
 
-void update() {
+void GAME_RUN_update() {
+	if (keyPressed(SDL_SCANCODE_ESCAPE)) {
+		gameState = GAME_PAUSED;
+		return;
+	}
+
 #define MOVEMENT_TIMER_LENGTH 100
 	if (keys[SDL_SCANCODE_LEFT]) {
 		static int lastLeft = 0;
@@ -450,7 +535,7 @@ void update() {
 	}
 
 	blockTimer -= dt;
-	if (blockTimer < 0) {
+	if (blockTimer <= 0) {
 		blockTimer = blockTimerLength;
 
 		currentBlock.dy++;
@@ -467,11 +552,13 @@ void update() {
 		placementTimer -= dt;
 		//printf("%d\n", placementTimer);
 
-		if (placementTimer < 0) {
+		if (placementTimer <= 0) {
 			placementTimer = placementTimerLength;
 			placeCurrent();
 		}
 	}
+
+	GAME_RUN_draw();
 }
 
 void dropCurrent() {
@@ -713,45 +800,12 @@ rotationFailed:;
 	return success;
 }
 
-void drawBoard();
-void drawCurrent();
-
-void draw() {
+void GAME_RUN_draw() {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xff);
 	SDL_RenderClear(renderer);
 
 	drawBoard();
 	drawCurrent();
-
-	{
-		struct DrawStringInfo dsi = {
-			.font = font_small,
-			.colour = {0xff, 0xff, 0xff, 0xff},
-			.x = 0,
-			.y = 0,
-		};
-		drawString("TL", &dsi);
-
-		dsi.x = WIDTH;
-		dsi.alignX = TEXT_ALIGN_RIGHT;
-		drawString("TR", &dsi);
-
-		dsi.x = WIDTH / 2;
-		dsi.y = HEIGHT / 2;
-		dsi.alignX = TEXT_ALIGN_CENTRE;
-		dsi.alignY = TEXT_ALIGN_CENTRE;
-		drawString("C", &dsi);
-
-		dsi.x = 0;
-		dsi.y = HEIGHT;
-		dsi.alignX = TEXT_ALIGN_LEFT;
-		dsi.alignY = TEXT_ALIGN_ABOVE;
-		drawString("BL", &dsi);
-
-		dsi.x = WIDTH;
-		dsi.alignX = TEXT_ALIGN_RIGHT;
-		drawString("BR", &dsi);
-	}
 
 	SDL_RenderPresent(renderer);
 }
@@ -841,7 +895,7 @@ void loadFont() {
 	font_small = TTF_OpenFont("resources/Blinker/Blinker-Regular.ttf", 40);
 }
 
-void drawString(const char* msg, struct DrawStringInfo* dsi) {
+void drawString(struct DrawStringInfo* dsi, const char* msg) {
 	SDL_Surface* surf = TTF_RenderUTF8_Blended(dsi->font, msg, dsi->colour);
 	SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
 
@@ -851,7 +905,7 @@ void drawString(const char* msg, struct DrawStringInfo* dsi) {
 	switch (dsi->alignX) {
 	case TEXT_ALIGN_LEFT:
 		break;
-	
+
 	case TEXT_ALIGN_RIGHT:
 		x -= surf->w;
 		break;
@@ -893,4 +947,30 @@ void drawString(const char* msg, struct DrawStringInfo* dsi) {
 
 	SDL_FreeSurface(surf);
 	SDL_DestroyTexture(tex);
+}
+
+void drawStringf(struct DrawStringInfo* dsi, const char* fmt, ...) {
+	static char* buf;
+	static int bufSize;
+
+	while (true) {
+		va_list args;
+		va_start(args, fmt);
+
+		if (buf == NULL) {
+			bufSize = 4;
+			buf = malloc(bufSize);
+		}
+		int ret = vsnprintf(buf, bufSize, fmt, args);
+		if (ret > bufSize) {
+			bufSize = ret + 1;
+			buf = realloc(buf, bufSize);
+		}
+		else {
+			drawString(dsi, buf);
+			return;
+		}
+
+		va_end(args);
+	}
 }
