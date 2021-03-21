@@ -5,9 +5,34 @@
 
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 
 SDL_Window* window;
 SDL_Renderer* renderer;
+
+TTF_Font* font_big;
+TTF_Font* font_small;
+void loadFont();
+
+enum TextAlignment {
+	TEXT_ALIGN_LEFT = 0,
+	TEXT_ALIGN_BELOW = 0,
+	TEXT_ALIGN_CENTRE = 1,
+	TEXT_ALIGN_RIGHT = 2,
+	TEXT_ALIGN_ABOVE = 2,
+};
+
+struct DrawStringInfo {
+	TTF_Font* font;
+	SDL_Color colour;
+	int x;
+	int y;
+
+	enum TextAlignment alignX;
+	enum TextAlignment alignY;
+};
+
+void drawString(const char* msg, struct DrawStringInfo* dsi);
 
 #define BLOCKS_X 10
 #define BLOCKS_Y 20
@@ -306,6 +331,7 @@ Uint8* lastKeys = NULL;
 
 int main() {
 	SDL_Init(SDL_INIT_EVERYTHING);
+	TTF_Init();
 
 	window = SDL_CreateWindow(
 		"Tetris",
@@ -319,6 +345,8 @@ int main() {
 		window,
 		-1,
 		SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+
+	loadFont();
 
 	//printf("%d\n", SDL_GetTicks());
 	srand(SDL_GetTicks());
@@ -695,6 +723,36 @@ void draw() {
 	drawBoard();
 	drawCurrent();
 
+	{
+		struct DrawStringInfo dsi = {
+			.font = font_small,
+			.colour = {0xff, 0xff, 0xff, 0xff},
+			.x = 0,
+			.y = 0,
+		};
+		drawString("TL", &dsi);
+
+		dsi.x = WIDTH;
+		dsi.alignX = TEXT_ALIGN_RIGHT;
+		drawString("TR", &dsi);
+
+		dsi.x = WIDTH / 2;
+		dsi.y = HEIGHT / 2;
+		dsi.alignX = TEXT_ALIGN_CENTRE;
+		dsi.alignY = TEXT_ALIGN_CENTRE;
+		drawString("C", &dsi);
+
+		dsi.x = 0;
+		dsi.y = HEIGHT;
+		dsi.alignX = TEXT_ALIGN_LEFT;
+		dsi.alignY = TEXT_ALIGN_ABOVE;
+		drawString("BL", &dsi);
+
+		dsi.x = WIDTH;
+		dsi.alignX = TEXT_ALIGN_RIGHT;
+		drawString("BR", &dsi);
+	}
+
 	SDL_RenderPresent(renderer);
 }
 
@@ -776,4 +834,63 @@ void drawCurrent() {
 			}
 		}
 	}
+}
+
+void loadFont() {
+	font_big = TTF_OpenFont("resources/Blinker/Blinker-Regular.ttf", 80);
+	font_small = TTF_OpenFont("resources/Blinker/Blinker-Regular.ttf", 40);
+}
+
+void drawString(const char* msg, struct DrawStringInfo* dsi) {
+	SDL_Surface* surf = TTF_RenderUTF8_Blended(dsi->font, msg, dsi->colour);
+	SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
+
+	int x = dsi->x;
+	int y = dsi->y;
+
+	switch (dsi->alignX) {
+	case TEXT_ALIGN_LEFT:
+		break;
+	
+	case TEXT_ALIGN_RIGHT:
+		x -= surf->w;
+		break;
+
+	case TEXT_ALIGN_CENTRE:
+		x -= surf->w / 2;
+		break;
+
+	default:
+		printf("Invalid text align\n");
+		exit(-1);
+	}
+
+	switch (dsi->alignY) {
+	case TEXT_ALIGN_BELOW:
+		break;
+
+	case TEXT_ALIGN_ABOVE:
+		y -= surf->h;
+		break;
+
+	case TEXT_ALIGN_CENTRE:
+		y -= surf->h / 2;
+		break;
+
+	default:
+		printf("Invalid text align\n");
+		exit(-1);
+	}
+
+	SDL_Rect dest = {
+		x,
+		y,
+		surf->w,
+		surf->h
+	};
+
+	SDL_RenderCopy(renderer, tex, NULL, &dest);
+
+	SDL_FreeSurface(surf);
+	SDL_DestroyTexture(tex);
 }
