@@ -331,6 +331,7 @@ bool tryMove();
 void GAME_RUN_draw();
 void drawBoard();
 void drawCurrent();
+void drawPieceQueue();
 
 int time = 0;
 int lastTime = 0;
@@ -453,6 +454,7 @@ void GAME_PAUSED_draw() {
 
 	drawBoard();
 	drawCurrent();
+	drawPieceQueue();
 
 	if (unpausing) {
 		struct DrawStringInfo dsi = {
@@ -640,11 +642,32 @@ void placeCurrent() {
 #define QUEUE_LENGTH 4
 enum PieceType pieceQueue[QUEUE_LENGTH];
 
+void enqueuePiece();
+
 void selectPiece() {
+	static bool pieceQueueInitialised = false;
+	if (!pieceQueueInitialised) {
+		pieceQueueInitialised = true;
+
+		for (int i = 0; i < QUEUE_LENGTH; i++) {
+			enqueuePiece();
+		}
+	}
+
 	currentBlock.x = BLOCKS_X / 2 - 1;
 	currentBlock.y = 0;
 	currentBlock.rotation = 0;
 
+	currentBlock.type = pieceQueue[0];
+	enqueuePiece();
+
+	//for (int i = 0; i < QUEUE_LENGTH; i++) {
+	//	printf("%d ", pieceQueue[i]);
+	//}
+	//printf("\n");
+}
+
+void enqueuePiece() {
 	static bool usedPieces[7] = { 0 };
 
 	bool allUsed = true;
@@ -670,7 +693,53 @@ void selectPiece() {
 
 	usedPieces[type] = true;
 
-	currentBlock.type = type;
+	memmove(&pieceQueue[0], &pieceQueue[1], (QUEUE_LENGTH - 1) * sizeof(enum PieceType));
+	pieceQueue[QUEUE_LENGTH - 1] = type;
+}
+
+void drawPieceQueue() {
+	int queueLeft = BOARD_RIGHT + 20;
+	int queueWidth = 100;
+
+	int queueTop = 60;
+
+	struct DrawStringInfo dsi = {
+		.font = font_small,
+		.colour = {0xff, 0xff, 0xff, 0xff},
+		.x = queueLeft + queueWidth / 2,
+		.y = queueTop,
+		.alignX = TEXT_ALIGN_CENTRE,
+		.alignY = TEXT_ALIGN_ABOVE
+	};
+	drawString(&dsi, "Next");
+
+	int y = queueTop;
+
+	for (int i = 0; i < QUEUE_LENGTH; i++) {
+		struct BlockDef* block = &BLOCKS[pieceQueue[i]];
+		struct BlockRotation* br = &block->rotations[0];
+
+		for (int i = 0; i < 4; i++) {
+			bool anySolid = false;
+
+			for (int j = 0; j < 4; j++) {
+				if (br->vals[i][j]) {
+					anySolid = true;
+
+					SDL_Color colour = block->colour;
+
+					SDL_Rect rect = { queueLeft + j * BLOCK_SIZE, y, BLOCK_SIZE, BLOCK_SIZE };
+					SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
+					SDL_RenderFillRect(renderer, &rect);
+
+				}
+			}
+			if (anySolid) {
+				y += BLOCK_SIZE;
+			}
+		}
+		y += BLOCK_SIZE;
+	}
 }
 
 void removeLine(int y);
@@ -842,6 +911,7 @@ void GAME_RUN_draw() {
 
 	drawBoard();
 	drawCurrent();
+	drawPieceQueue();
 
 	SDL_RenderPresent(renderer);
 }
@@ -874,27 +944,7 @@ void drawCurrent() {
 	struct BlockDef* block = &BLOCKS[currentBlock.type];
 	struct BlockRotation* br = &block->rotations[currentBlock.rotation];
 
-	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++) {
-			int x = currentBlock.x + j;
-			int y = currentBlock.y + i;
-
-			if (x < 0 || x >= BLOCKS_X || y < 0 || y >= BLOCKS_Y) {
-				continue;
-			}
-
-			if (br->vals[i][j]) {
-				SDL_Color colour = block->colour;
-
-				SDL_Rect rect = { BOARD_LEFT + x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE };
-				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
-				SDL_RenderFillRect(renderer, &rect);
-			}
-		}
-	}
-
 	// Draw ghost block
-
 	int y = currentBlock.y;
 	bool success;
 	do {
@@ -917,6 +967,25 @@ void drawCurrent() {
 
 			if (br->vals[i][j]) {
 				SDL_Color colour = { 0xff, 0xff, 0xff, 0xff };
+
+				SDL_Rect rect = { BOARD_LEFT + x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE };
+				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
+				SDL_RenderFillRect(renderer, &rect);
+			}
+		}
+	}
+
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			int x = currentBlock.x + j;
+			int y = currentBlock.y + i;
+
+			if (x < 0 || x >= BLOCKS_X || y < 0 || y >= BLOCKS_Y) {
+				continue;
+			}
+
+			if (br->vals[i][j]) {
+				SDL_Color colour = block->colour;
 
 				SDL_Rect rect = { BOARD_LEFT + x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE };
 				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
