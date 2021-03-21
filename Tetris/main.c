@@ -64,7 +64,7 @@ struct BlockDef {
 const struct BlockDef BLOCKS[NUM_BLOCKS] = {
 	// O piece
 	{
-		.colour = {0xff, 0xff, 0x00, 0xff},
+		.colour = {0xf0, 0xd9, 0x11, 0xff},
 		.rotations = {
 			{{
 				{1, 1, 0, 0},
@@ -94,7 +94,7 @@ const struct BlockDef BLOCKS[NUM_BLOCKS] = {
 	},
 	// I piece
 	{
-		.colour = {0x00, 0xff, 0xff, 0xff},
+		.colour = {0x15, 0xb7, 0xe8, 0xff},
 		.rotations = {
 			{{
 				{0, 1, 0, 0},
@@ -124,7 +124,7 @@ const struct BlockDef BLOCKS[NUM_BLOCKS] = {
 	},
 	// T piece
 	{
-		.colour = {0xff, 0x00, 0xff, 0xff},
+		.colour = {0xa8, 0x0b, 0xbd, 0xff},
 		.rotations = {
 			{{
 				{0, 1, 0, 0},
@@ -154,7 +154,7 @@ const struct BlockDef BLOCKS[NUM_BLOCKS] = {
 	},
 	// L piece
 	{
-		.colour = {0x50, 0x00, 0xff, 0xff},
+		.colour = {0x1f, 0x50, 0xab, 0xff},
 		.rotations = {
 			{{
 				{0, 1, 0, 0},
@@ -184,7 +184,7 @@ const struct BlockDef BLOCKS[NUM_BLOCKS] = {
 	},
 	// J piece
 	{
-		.colour = {0xff, 0xbb, 0x00, 0xff},
+		.colour = {0xf0, 0xa9, 0x11, 0xff},
 		.rotations = {
 			{{
 				{0, 1, 0, 0},
@@ -214,7 +214,7 @@ const struct BlockDef BLOCKS[NUM_BLOCKS] = {
 	},
 	// S piece
 	{
-		.colour = {0x00, 0xff, 0x00, 0xff},
+		.colour = {0x25, 0xcf, 0x60, 0xff},
 		.rotations = {
 			{{
 				{0, 1, 1, 0},
@@ -244,7 +244,7 @@ const struct BlockDef BLOCKS[NUM_BLOCKS] = {
 	},
 	// Z piece
 	{
-		.colour = {0xff, 0x00, 0x00, 0xff},
+		.colour = {0xff, 0x25, 0x25, 0xff},
 		.rotations = {
 			{{
 				{1, 1, 0, 0},
@@ -309,6 +309,9 @@ struct {
 	struct Cell cells[BLOCKS_X][BLOCKS_Y];
 } board = { 0 };
 
+int lines = 0;
+int level = 1;
+
 // Time left until block moves down
 int blockTimer = 1000;
 
@@ -324,6 +327,7 @@ void GAME_PAUSED_draw();
 
 void GAME_RUN_update();
 void selectPiece();
+void enqueuePiece();
 void placeCurrent();
 void dropCurrent();
 bool tryMove();
@@ -332,6 +336,15 @@ void GAME_RUN_draw();
 void drawBoard();
 void drawCurrent();
 void drawPieceQueue();
+void drawHeldPiece();
+void drawScore();
+
+void GAME_OVER_update();
+
+void GAME_LINE_CLEAR_update();
+
+#define QUEUE_LENGTH 4
+enum PieceType pieceQueue[QUEUE_LENGTH];
 
 int time = 0;
 int lastTime = 0;
@@ -339,7 +352,9 @@ int dt = 0;
 
 enum {
 	GAME_PAUSED,
-	GAME_RUN
+	GAME_RUN,
+	GAME_LINE_CLEAR,
+	GAME_OVER
 } gameState = GAME_RUN;
 
 int keysLen;
@@ -366,6 +381,7 @@ int main() {
 		window,
 		-1,
 		SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
 	loadFont();
 
@@ -411,6 +427,12 @@ int main() {
 		case GAME_RUN:
 			GAME_RUN_update();
 			break;
+		case GAME_LINE_CLEAR:
+			GAME_LINE_CLEAR_update();
+			break;
+		case GAME_OVER:
+			GAME_OVER_update();
+			break;
 		default:
 			printf("Invalid game state\n");
 			exit(-1);
@@ -420,6 +442,8 @@ int main() {
 end:;
 	return 0;
 }
+
+const SDL_Colour backgroundColour = { 0xf5, 0xf5, 0xf5, 0xff };
 
 bool unpausing = false;
 int unpauseTimer;
@@ -449,12 +473,14 @@ void GAME_PAUSED_update() {
 }
 
 void GAME_PAUSED_draw() {
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xff);
+	SDL_SetRenderDrawColor(renderer, backgroundColour.r, backgroundColour.g, backgroundColour.b, backgroundColour.a);
 	SDL_RenderClear(renderer);
 
 	drawBoard();
 	drawCurrent();
 	drawPieceQueue();
+	drawHeldPiece();
+	drawScore();
 
 	if (unpausing) {
 		struct DrawStringInfo dsi = {
@@ -482,8 +508,69 @@ void GAME_PAUSED_draw() {
 	SDL_RenderPresent(renderer);
 }
 
+void GAME_OVER_draw();
+
+void GAME_OVER_update() {
+	GAME_OVER_draw();
+}
+
+void GAME_OVER_draw() {
+	SDL_SetRenderDrawColor(renderer, backgroundColour.r, backgroundColour.g, backgroundColour.b, backgroundColour.a);
+	SDL_RenderClear(renderer);
+
+	drawBoard();
+	drawCurrent();
+	drawPieceQueue();
+	drawHeldPiece();
+	drawScore();
+
+	struct DrawStringInfo dsi = {
+		.font = font_big,
+		.colour = {0xff, 0x00, 0x00, 0xff},
+		.x = BOARD_LEFT + BOARD_WIDTH / 2,
+		.y = BOARD_HEIGHT / 2,
+		.alignX = TEXT_ALIGN_CENTRE,
+		.alignY = TEXT_ALIGN_CENTRE,
+	};
+	drawString(&dsi, "Game Over");
+
+	SDL_RenderPresent(renderer);
+}
+
+int linesToClear[BLOCKS_Y];
+int lineCount = 0;
+
+void GAME_LINE_CLEAR_draw();
+
+void GAME_LINE_CLEAR_update() {
+	GAME_LINE_CLEAR_draw();
+}
+
+void GAME_LINE_CLEAR_draw() {
+#define CLEAR_TIMER_LENGTH 20
+
+	SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 256 / CLEAR_TIMER_LENGTH);
+	for (int i = 0; i < lineCount; i++) {
+		SDL_Rect rect = { BOARD_LEFT, linesToClear[i] * BLOCK_SIZE, BOARD_WIDTH, BLOCK_SIZE };
+		SDL_RenderFillRect(renderer, &rect);
+	}
+
+	static int clearTimer = CLEAR_TIMER_LENGTH;
+	if (--clearTimer <= 0) {
+		gameState = GAME_RUN;
+		clearTimer = CLEAR_TIMER_LENGTH;
+		lineCount = 0;
+	}
+
+	SDL_RenderPresent(renderer);
+}
+
 bool tryRotate();
 bool checkResting();
+
+bool pieceHeld = false;
+bool canHold = true;
+enum PieceType heldPieceType;
 
 void GAME_RUN_update() {
 	if (keyPressed(SDL_SCANCODE_ESCAPE)) {
@@ -509,10 +596,12 @@ void GAME_RUN_update() {
 			lastRight = time;
 		}
 	}
+
+#define SOFT_DROP_TIMER_LENGTH 25
 	if (keys[SDL_SCANCODE_DOWN]) {
 		static int lastDown = 0;
 
-		if ((time - lastDown) > MOVEMENT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_DOWN]) {
+		if ((time - lastDown) > SOFT_DROP_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_DOWN]) {
 			currentBlock.dy++;
 			blockTimer = blockTimerLength;
 			lastDown = time;
@@ -544,6 +633,26 @@ void GAME_RUN_update() {
 		dropCurrent();
 	}
 
+	if (keyPressed(SDL_SCANCODE_C) && canHold) {
+		currentBlock.x = BLOCKS_X / 2 - 1;
+		currentBlock.y = 0;
+		currentBlock.rotation = 0;
+
+		if (pieceHeld) {
+			enum PieceType tmp = currentBlock.type;
+			currentBlock.type = heldPieceType;
+			heldPieceType = tmp;
+		}
+		else {
+			heldPieceType = currentBlock.type;
+			currentBlock.type = pieceQueue[0];
+			enqueuePiece();
+		}
+
+		pieceHeld = true;
+		canHold = false;
+	}
+
 	blockTimer -= dt;
 	if (blockTimer <= 0) {
 		blockTimer = blockTimerLength;
@@ -566,6 +675,10 @@ void GAME_RUN_update() {
 			placementTimer = placementTimerLength;
 			placeCurrent();
 		}
+	}
+
+	if (gameState == GAME_LINE_CLEAR) {
+		return;
 	}
 
 	GAME_RUN_draw();
@@ -613,8 +726,6 @@ bool checkResting() {
 
 void checkForLines();
 
-void updatePieceQueue();
-
 void placeCurrent() {
 	blockTimer = blockTimerLength;
 
@@ -634,15 +745,12 @@ void placeCurrent() {
 		}
 	}
 
+	canHold = true;
+
 	checkForLines();
 
 	selectPiece();
 }
-
-#define QUEUE_LENGTH 4
-enum PieceType pieceQueue[QUEUE_LENGTH];
-
-void enqueuePiece();
 
 void selectPiece() {
 	static bool pieceQueueInitialised = false;
@@ -661,10 +769,21 @@ void selectPiece() {
 	currentBlock.type = pieceQueue[0];
 	enqueuePiece();
 
-	//for (int i = 0; i < QUEUE_LENGTH; i++) {
-	//	printf("%d ", pieceQueue[i]);
-	//}
-	//printf("\n");
+	// If any cells that would be occupied by the new piece are solid, game over
+	struct BlockDef* block = &BLOCKS[currentBlock.type];
+	struct BlockRotation* br = &block->rotations[currentBlock.rotation];
+
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			int x = j + currentBlock.x;
+			int y = i + currentBlock.y;
+
+			if (br->vals[i][j] && board.cells[x][y].solid) {
+				gameState = GAME_OVER;
+				return;
+			}
+		}
+	}
 }
 
 void enqueuePiece() {
@@ -698,14 +817,14 @@ void enqueuePiece() {
 }
 
 void drawPieceQueue() {
-	int queueLeft = BOARD_RIGHT + 20;
+	int queueLeft = BOARD_RIGHT + 30;
 	int queueWidth = 100;
 
 	int queueTop = 60;
 
 	struct DrawStringInfo dsi = {
 		.font = font_small,
-		.colour = {0xff, 0xff, 0xff, 0xff},
+		.colour = { 0x2b, 0x2b, 0x2b, 0xff },
 		.x = queueLeft + queueWidth / 2,
 		.y = queueTop,
 		.alignX = TEXT_ALIGN_CENTRE,
@@ -742,6 +861,70 @@ void drawPieceQueue() {
 	}
 }
 
+void drawHeldPiece() {
+	int left = BOARD_LEFT - 30;
+	int y = 60;
+
+	struct DrawStringInfo dsi = {
+		.font = font_small,
+		.colour = { 0x2b, 0x2b, 0x2b, 0xff },
+		.x = left,
+		.y = y,
+		.alignX = TEXT_ALIGN_RIGHT,
+		.alignY = TEXT_ALIGN_ABOVE
+	};
+	drawString(&dsi, "Held");
+
+	if (pieceHeld) {
+		struct BlockDef* block = &BLOCKS[heldPieceType];
+		struct BlockRotation* br = &block->rotations[0];
+
+		for (int i = 0; i < 4; i++) {
+			bool anySolid = false;
+
+			for (int j = 0; j < 4; j++) {
+				if (br->vals[i][j]) {
+					anySolid = true;
+
+					SDL_Color colour = block->colour;
+
+					SDL_Rect rect = { 50 + j * BLOCK_SIZE, y, BLOCK_SIZE, BLOCK_SIZE };
+					SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
+					SDL_RenderFillRect(renderer, &rect);
+				}
+			}
+			if (anySolid) {
+				y += BLOCK_SIZE;
+			}
+		}
+	}
+}
+
+void drawScore() {
+	int left = BOARD_LEFT - 30;
+	int y = 300;
+
+	struct DrawStringInfo dsi = {
+		.font = font_small,
+		.colour = { 0x2b, 0x2b, 0x2b, 0xff },
+		.x = left,
+		.y = y,
+		.alignX = TEXT_ALIGN_RIGHT,
+		.alignY = TEXT_ALIGN_ABOVE
+	};
+	drawString(&dsi, "Lines");
+
+	dsi.alignY = TEXT_ALIGN_BELOW;
+	drawStringf(&dsi, "%d", lines);
+
+	dsi.y += 100;
+	dsi.alignY = TEXT_ALIGN_ABOVE;
+	drawString(&dsi, "Level");
+
+	dsi.alignY = TEXT_ALIGN_BELOW;
+	drawStringf(&dsi, "%d", level);
+}
+
 void removeLine(int y);
 
 void checkForLines() {
@@ -756,21 +939,31 @@ void checkForLines() {
 			if (br->vals[i][j]) {
 				for (int x2 = 0; x2 < BLOCKS_X; x2++) {
 					if (!board.cells[x2][y].solid) {
-						goto nextLine;
+						goto checkNextLine;
 					}
 				}
 
 				removeLine(y);
 
-				goto nextLine;
+				linesToClear[lineCount++] = y;
+				gameState = GAME_LINE_CLEAR;
+
+				goto checkNextLine;
 			}
 		}
-	nextLine:;
+	checkNextLine:;
 	}
 }
 
 void removeLine(int y) {
 	//printf("%d\n", y);
+
+	lines++;
+	if (lines % 10 == 0) {
+		level++;
+		blockTimerLength *= 2;
+		blockTimerLength /= 3;
+	}
 
 	for (int x = 0; x < BLOCKS_X; x++) {
 		board.cells[x][y].solid = false;
@@ -906,12 +1099,14 @@ rotationFailed:;
 }
 
 void GAME_RUN_draw() {
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xff);
+	SDL_SetRenderDrawColor(renderer, backgroundColour.r, backgroundColour.g, backgroundColour.b, backgroundColour.a);
 	SDL_RenderClear(renderer);
 
 	drawBoard();
 	drawCurrent();
 	drawPieceQueue();
+	drawHeldPiece();
+	drawScore();
 
 	SDL_RenderPresent(renderer);
 }
@@ -922,19 +1117,22 @@ void drawBoard() {
 			int x = BOARD_LEFT + j * BLOCK_SIZE;
 			int y = i * BLOCK_SIZE;
 
-			SDL_Rect rect = { x, y, BLOCK_SIZE, BLOCK_SIZE };
-			SDL_Color colour = { 0xff, 0xff, 0xff, 0xff };
-
-			SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
-			SDL_RenderDrawRect(renderer, &rect);
-
 			struct Cell* cell = &board.cells[j][i];
 
+			SDL_Rect rect = { x, y, BLOCK_SIZE, BLOCK_SIZE };
 			if (cell->solid) {
 				SDL_Color colour = cell->colour;
-
 				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
 				SDL_RenderFillRect(renderer, &rect);
+			}
+			else {
+				SDL_Color colour = (SDL_Color){ 0x2b, 0x2b, 0x2b, 0xff };
+				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
+				SDL_RenderFillRect(renderer, &rect);
+
+				colour = (SDL_Color){ 0x45, 0x45, 0x45, 0xff };
+				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
+				SDL_RenderDrawRect(renderer, &rect);
 			}
 		}
 	}
@@ -966,7 +1164,7 @@ void drawCurrent() {
 			}
 
 			if (br->vals[i][j]) {
-				SDL_Color colour = { 0xff, 0xff, 0xff, 0xff };
+				SDL_Color colour = { 0x45, 0x45, 0x45, 0xbf };
 
 				SDL_Rect rect = { BOARD_LEFT + x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE };
 				SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, colour.a);
