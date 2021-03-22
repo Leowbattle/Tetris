@@ -365,6 +365,62 @@ bool keyPressed(int scancode) {
 	return keys[scancode] && !lastKeys[scancode];
 }
 
+bool mainLoop(double _emTime, void* _emUserData) {
+	SDL_Event e;
+	while (SDL_PollEvent(&e)) {
+		switch (e.type) {
+		case SDL_QUIT:
+			return false;
+
+		default:
+			break;
+		}
+	}
+
+	if (lastKeys == NULL) {
+		Uint8* keys1 = SDL_GetKeyboardState(&keysLen);
+		keys = malloc(keysLen);
+		lastKeys = malloc(keysLen);
+		memset(keys, 0, keysLen);
+		memset(lastKeys, 0, keysLen);
+	}
+	else {
+		memcpy(lastKeys, keys, keysLen);
+
+		Uint8* keys1 = SDL_GetKeyboardState(NULL);
+		memcpy(keys, keys1, keysLen);
+	}
+
+	lastTime = time;
+	time = SDL_GetTicks();
+	dt = time - lastTime;
+
+	switch (gameState) {
+	case GAME_PAUSED:
+		GAME_PAUSED_update();
+		break;
+	case GAME_RUN:
+		GAME_RUN_update();
+		break;
+	case GAME_LINE_CLEAR:
+		GAME_LINE_CLEAR_update();
+		break;
+	case GAME_OVER:
+		GAME_OVER_update();
+		break;
+	default:
+		printf("Invalid game state\n");
+		exit(-1);
+	}
+
+	return true;
+}
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#endif
+
 int main() {
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
@@ -390,56 +446,16 @@ int main() {
 
 	selectPiece();
 
+#ifdef __EMSCRIPTEN__
+	emscripten_request_animation_frame_loop(mainLoop, 0);
+#else
 	while (true) {
-		SDL_Event e;
-		while (SDL_PollEvent(&e)) {
-			switch (e.type) {
-			case SDL_QUIT:
-				goto end;
-
-			default:
-				break;
-			}
-		}
-
-		if (lastKeys == NULL) {
-			Uint8* keys1 = SDL_GetKeyboardState(&keysLen);
-			keys = malloc(keysLen);
-			lastKeys = malloc(keysLen);
-			memset(keys, 0, keysLen);
-			memset(lastKeys, 0, keysLen);
-		}
-		else {
-			memcpy(lastKeys, keys, keysLen);
-
-			Uint8* keys1 = SDL_GetKeyboardState(NULL);
-			memcpy(keys, keys1, keysLen);
-		}
-
-		lastTime = time;
-		time = SDL_GetTicks();
-		dt = time - lastTime;
-
-		switch (gameState) {
-		case GAME_PAUSED:
-			GAME_PAUSED_update();
+		if (!mainLoop(0, NULL)) {
 			break;
-		case GAME_RUN:
-			GAME_RUN_update();
-			break;
-		case GAME_LINE_CLEAR:
-			GAME_LINE_CLEAR_update();
-			break;
-		case GAME_OVER:
-			GAME_OVER_update();
-			break;
-		default:
-			printf("Invalid game state\n");
-			exit(-1);
 		}
 	}
+#endif
 
-end:;
 	return 0;
 }
 
