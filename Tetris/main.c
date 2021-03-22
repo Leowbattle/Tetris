@@ -331,6 +331,7 @@ void enqueuePiece();
 void placeCurrent();
 void dropCurrent();
 bool tryMove();
+void removeLine(int y);
 
 void GAME_RUN_draw();
 void drawBoard();
@@ -563,19 +564,32 @@ void GAME_LINE_CLEAR_update() {
 }
 
 void GAME_LINE_CLEAR_draw() {
-#define CLEAR_TIMER_LENGTH 20
+	SDL_SetRenderDrawColor(renderer, backgroundColour.r, backgroundColour.g, backgroundColour.b, backgroundColour.a);
+	SDL_RenderClear(renderer);
 
-	SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 256 / CLEAR_TIMER_LENGTH);
-	for (int i = 0; i < lineCount; i++) {
-		SDL_Rect rect = { BOARD_LEFT, linesToClear[i] * BLOCK_SIZE, BOARD_WIDTH, BLOCK_SIZE };
-		SDL_RenderFillRect(renderer, &rect);
-	}
+	drawBoard();
+	drawCurrent();
+	drawPieceQueue();
+	drawHeldPiece();
+	drawScore();
+
+#define CLEAR_TIMER_LENGTH 10
 
 	static int clearTimer = CLEAR_TIMER_LENGTH;
 	if (--clearTimer <= 0) {
+		for (int i = 0; i < lineCount; i++) {
+			removeLine(linesToClear[i]);
+		}
+
 		gameState = GAME_RUN;
 		clearTimer = CLEAR_TIMER_LENGTH;
 		lineCount = 0;
+	}
+
+	SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, (CLEAR_TIMER_LENGTH - clearTimer) * (256 / CLEAR_TIMER_LENGTH));
+	for (int i = 0; i < lineCount; i++) {
+		SDL_Rect rect = { BOARD_LEFT, linesToClear[i] * BLOCK_SIZE, BOARD_WIDTH, BLOCK_SIZE };
+		SDL_RenderFillRect(renderer, &rect);
 	}
 
 	SDL_RenderPresent(renderer);
@@ -941,8 +955,6 @@ void drawScore() {
 	drawStringf(&dsi, "%d", level);
 }
 
-void removeLine(int y);
-
 void checkForLines() {
 	struct BlockDef* block = &BLOCKS[currentBlock.type];
 	struct BlockRotation* br = &block->rotations[currentBlock.rotation];
@@ -958,8 +970,6 @@ void checkForLines() {
 						goto checkNextLine;
 					}
 				}
-
-				removeLine(y);
 
 				linesToClear[lineCount++] = y;
 				gameState = GAME_LINE_CLEAR;
