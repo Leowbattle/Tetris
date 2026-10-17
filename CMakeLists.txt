@@ -55,6 +55,18 @@ if(EMSCRIPTEN)
     set_property(TARGET tetris APPEND PROPERTY LINK_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html)
 
+    # Version the generated asset URLs. index.js is commonly cached for hours,
+    # so without this a deployment can leave visitors running an older
+    # index.js against the new index.html (the touch controls then do nothing).
+    add_custom_command(TARGET tetris POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DINDEX_HTML=$<TARGET_FILE:tetris>
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/web/cache-bust.cmake
+        COMMENT "Stamping web asset URLs with a build version")
+
+    set_property(TARGET tetris APPEND PROPERTY LINK_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/web/cache-bust.cmake)
+
 else()
     # ------------------------------------------------------------------
     # Desktop (native) build

@@ -51,7 +51,10 @@ cmake --build build-web --parallel
 
 This produces `build-web/index.html`, `index.js`, `index.wasm` and `index.data`.
 The build preloads `Tetris/resources` into the virtual filesystem at
-`/resources`, so no extra files are needed at runtime.
+`/resources`, so no extra files are needed at runtime. The page references its
+script with a content-derived `?v=` query (see `web/cache-bust.cmake`) so a
+browser can never pair a cached `index.js` from an older deployment with a newer
+page.
 
 A `file://` URL will not work because the `.wasm`/`.data` files are fetched over
 HTTP — serve the directory instead:
