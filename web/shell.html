@@ -596,6 +596,10 @@
     var canvasElement = document.getElementById('canvas');
     var progress = 0;
 
+    // Replaced with a content-derived id by web/cache-bust.cmake. It keeps
+    // index.wasm / index.data in sync with index.js across deployments.
+    var BUILD_VERSION = '__BUILD_VERSION__';
+
     function setProgress(value) {
       progress = Math.max(progress, value);
       progressBar.style.width = progress + '%';
@@ -628,6 +632,9 @@
 
     var Module = {
       canvas: canvasElement,
+      locateFile: function (path) {
+        return BUILD_VERSION ? path + '?v=' + BUILD_VERSION : path;
+      },
       print: function () {
         console.log.apply(console, arguments);
       },
