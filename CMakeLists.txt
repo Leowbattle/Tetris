@@ -42,12 +42,18 @@ if(EMSCRIPTEN)
         -sEXIT_RUNTIME=0
         # Preload the assets at /resources so the game's relative
         # "resources/..." paths resolve from the virtual root.
-        "SHELL:--preload-file ${RESOURCE_DIR}@/resources")
+        "SHELL:--preload-file ${RESOURCE_DIR}@/resources"
+        # Custom page shell with the responsive layout and touch controls.
+        "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html")
 
     # Emit index.html + index.js + index.wasm + index.data.
     set_target_properties(tetris PROPERTIES
         OUTPUT_NAME "index"
         SUFFIX ".html")
+
+    # Relink when the page shell changes.
+    set_property(TARGET tetris APPEND PROPERTY LINK_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html)
 
 else()
     # ------------------------------------------------------------------
