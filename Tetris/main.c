@@ -347,7 +347,7 @@ void GAME_LINE_CLEAR_update();
 #define QUEUE_LENGTH 4
 enum PieceType pieceQueue[QUEUE_LENGTH];
 
-int time = 0;
+int currentTime = 0;
 int lastTime = 0;
 int dt = 0;
 
@@ -392,9 +392,9 @@ bool mainLoop(double _emTime, void* _emUserData) {
 		memcpy(keys, keys1, keysLen);
 	}
 
-	lastTime = time;
-	time = SDL_GetTicks();
-	dt = time - lastTime;
+	lastTime = currentTime;
+	currentTime = SDL_GetTicks();
+	dt = currentTime - lastTime;
 
 	switch (gameState) {
 	case GAME_PAUSED:
@@ -612,18 +612,18 @@ void GAME_RUN_update() {
 	if (keys[SDL_SCANCODE_LEFT]) {
 		static int lastLeft = 0;
 
-		if ((time - lastLeft) > MOVEMENT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_LEFT]) {
+		if ((currentTime - lastLeft) > MOVEMENT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_LEFT]) {
 			currentBlock.dx--;
-			lastLeft = time;
+			lastLeft = currentTime;
 		}
 	}
 
 	if (keys[SDL_SCANCODE_RIGHT]) {
 		static int lastRight = 0;
 
-		if ((time - lastRight) > MOVEMENT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_RIGHT]) {
+		if ((currentTime - lastRight) > MOVEMENT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_RIGHT]) {
 			currentBlock.dx++;
-			lastRight = time;
+			lastRight = currentTime;
 		}
 	}
 
@@ -631,10 +631,10 @@ void GAME_RUN_update() {
 	if (keys[SDL_SCANCODE_DOWN]) {
 		static int lastDown = 0;
 
-		if ((time - lastDown) > SOFT_DROP_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_DOWN]) {
+		if ((currentTime - lastDown) > SOFT_DROP_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_DOWN]) {
 			currentBlock.dy++;
 			blockTimer = blockTimerLength;
-			lastDown = time;
+			lastDown = currentTime;
 		}
 	}
 
@@ -642,19 +642,19 @@ void GAME_RUN_update() {
 	if (keys[SDL_SCANCODE_R]) {
 		static int lastRotR = 0;
 
-		if ((time - lastRotR) > ROT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_R]) {
+		if ((currentTime - lastRotR) > ROT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_R]) {
 			currentBlock.dr++;
 			blockTimer = blockTimerLength;
-			lastRotR = time;
+			lastRotR = currentTime;
 		}
 	}
 	if (keys[SDL_SCANCODE_E]) {
 		static int lastRotL = 0;
 
-		if ((time - lastRotL) > ROT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_E]) {
+		if ((currentTime - lastRotL) > ROT_TIMER_LENGTH || !lastKeys[SDL_SCANCODE_E]) {
 			currentBlock.dr--;
 			blockTimer = blockTimerLength;
-			lastRotL = time;
+			lastRotL = currentTime;
 		}
 	}
 
