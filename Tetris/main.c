@@ -362,6 +362,13 @@ int keysLen;
 Uint8* keys = NULL;
 Uint8* lastKeys = NULL;
 
+#ifdef __EMSCRIPTEN__
+// On-screen controls feed these. Latched presses guarantee that a very short
+// tap is still seen by at least one frame of the game loop.
+static Uint8 touchKeys[SDL_NUM_SCANCODES];
+static Uint8 touchLatched[SDL_NUM_SCANCODES];
+#endif
+
 bool keyPressed(int scancode) {
 	return keys[scancode] && !lastKeys[scancode];
 }
@@ -392,6 +399,14 @@ bool mainLoop(double _emTime, void* _emUserData) {
 		memcpy(keys, keys1, keysLen);
 	}
 
+#ifdef __EMSCRIPTEN__
+	for (int i = 0; i < keysLen && i < SDL_NUM_SCANCODES; i++) {
+		if (touchKeys[i] || touchLatched[i]) {
+			keys[i] = 1;
+		}
+	}
+#endif
+
 	lastTime = currentTime;
 	currentTime = SDL_GetTicks();
 	dt = currentTime - lastTime;
@@ -414,12 +429,68 @@ bool mainLoop(double _emTime, void* _emUserData) {
 		exit(-1);
 	}
 
+#ifdef __EMSCRIPTEN__
+	memset(touchLatched, 0, sizeof touchLatched);
+#endif
+
 	return true;
 }
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/html5.h>
+
+enum TouchAction {
+	TOUCH_LEFT = 0,
+	TOUCH_RIGHT = 1,
+	TOUCH_DOWN = 2,
+	TOUCH_ROTATE_CW = 3,
+	TOUCH_ROTATE_CCW = 4,
+	TOUCH_HARD_DROP = 5,
+	TOUCH_HOLD = 6,
+	TOUCH_PAUSE = 7,
+};
+
+// Keep these values in sync with the action map in web/shell.html.
+EMSCRIPTEN_KEEPALIVE void setTouchAction(int action, int pressed) {
+	int scancode = -1;
+
+	switch (action) {
+	case TOUCH_LEFT:
+		scancode = SDL_SCANCODE_LEFT;
+		break;
+	case TOUCH_RIGHT:
+		scancode = SDL_SCANCODE_RIGHT;
+		break;
+	case TOUCH_DOWN:
+		scancode = SDL_SCANCODE_DOWN;
+		break;
+	case TOUCH_ROTATE_CW:
+		scancode = SDL_SCANCODE_R;
+		break;
+	case TOUCH_ROTATE_CCW:
+		scancode = SDL_SCANCODE_E;
+		break;
+	case TOUCH_HARD_DROP:
+		scancode = SDL_SCANCODE_SPACE;
+		break;
+	case TOUCH_HOLD:
+		scancode = SDL_SCANCODE_C;
+		break;
+	case TOUCH_PAUSE:
+		scancode = SDL_SCANCODE_ESCAPE;
+		break;
+	}
+
+	if (scancode < 0 || scancode >= SDL_NUM_SCANCODES) {
+		return;
+	}
+
+	touchKeys[scancode] = pressed ? 1 : 0;
+	if (pressed) {
+		touchLatched[scancode] = 1;
+	}
+}
 #endif
 
 int main() {

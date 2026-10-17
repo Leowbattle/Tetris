@@ -61,6 +61,19 @@ python3 -m http.server -d build-web 8000
 # then open http://localhost:8000/index.html
 ```
 
+The web build uses the custom page shell in `web/shell.html`, which provides a
+responsive layout and on-screen controls on touch devices. The shell calls the
+`setTouchAction` function exported from `Tetris/main.c`; keep the action numbers
+in the JS map and the C enum in sync.
+
+## Controls
+
+- **Desktop:** arrow keys move/soft drop, Space hard drops, `R`/`E` rotate,
+  `C` holds, Escape pauses.
+- **Touch:** on-screen buttons for movement, rotation, hold, hard drop and
+  pause. The controls are shown automatically on touch devices and narrow
+  screens.
+
 ## Continuous integration
 
 `.github/workflows/build.yml` builds both targets on every push and pull

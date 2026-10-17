@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="Tetris — a browser version of the classic block-stacking game.">
+  <meta name="application-name" content="Tetris">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tetris">
+  <title>Tetris</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1020'/%3E%3Crect x='7' y='7' width='8' height='8' rx='2' fill='%23f0d911'/%3E%3Crect x='17' y='7' width='8' height='8' rx='2' fill='%2315b7e8'/%3E%3Crect x='7' y='17' width='8' height='8' rx='2' fill='%23a80bbd'/%3E%3Crect x='17' y='17' width='8' height='8' rx='2' fill='%2325cf60'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0b1020;
+      --text: #eef2ff;
+      --muted: #9aa4c0;
+      --line: rgba(255, 255, 255, 0.1);
+      --accent: #5eead4;
+      --accent-2: #818cf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background:
+        radial-gradient(1200px 700px at 15% -10%, rgba(99, 102, 241, 0.3), transparent 60%),
+        radial-gradient(900px 600px at 110% 110%, rgba(45, 212, 191, 0.16), transparent 55%),
+        linear-gradient(160deg, #0b1020 0%, #0b1020 45%, #0e1428 100%);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: manipulation;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+      background-size: 44px 44px;
+      -webkit-mask-image: radial-gradient(circle at 50% 35%, black, transparent 78%);
+      mask-image: radial-gradient(circle at 50% 35%, black, transparent 78%);
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      padding:
+        max(12px, env(safe-area-inset-top))
+        max(14px, env(safe-area-inset-right))
+        max(12px, env(safe-area-inset-bottom))
+        max(14px, env(safe-area-inset-left));
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: clamp(18px, 3.4vw, 24px);
+      font-weight: 900;
+      letter-spacing: 0.22em;
+      color: #f8fafc;
+      text-shadow: 0 0 24px rgba(129, 140, 248, 0.35);
+    }
+
+    .brand-mark {
+      display: grid;
+      grid-template-columns: repeat(2, 7px);
+      grid-template-rows: repeat(2, 7px);
+      gap: 2px;
+    }
+
+    .brand-mark i {
+      display: block;
+      border-radius: 2px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+
+    .brand-mark i:nth-child(1) { background: #f0d911; }
+    .brand-mark i:nth-child(2) { background: #15b7e8; }
+    .brand-mark i:nth-child(3) { background: #a80bbd; }
+    .brand-mark i:nth-child(4) { background: #25cf60; }
+
+    .topbar-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      color: var(--text);
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      touch-action: none;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    }
+
+    .icon-button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .icon-button:active,
+    .icon-button.active {
+      background: rgba(94, 234, 212, 0.16);
+      border-color: rgba(94, 234, 212, 0.45);
+      transform: translateY(1px);
+    }
+
+    .icon-button:focus-visible,
+    .ctl:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .stage {
+      display: grid;
+      flex: 1 1 auto;
+      place-items: center;
+      gap: 16px;
+      width: 100%;
+      max-width: 900px;
+      min-height: 0;
+      margin: 0 auto;
+    }
+
+    .game-frame {
+      position: relative;
+      width: min(86vw, calc(100vh - 170px), 800px);
+      width: min(86vw, calc(100dvh - 170px), 800px);
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      background: #f5f5f5;
+      border-radius: clamp(12px, 2vw, 22px);
+      box-shadow:
+        0 30px 90px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 0 60px rgba(99, 102, 241, 0.12);
+    }
+
+    #canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      background: #f5f5f5;
+      outline: none;
+      touch-action: none;
+    }
+
+    .controls {
+      display: none;
+      gap: 10px;
+      touch-action: none;
+    }
+
+    .controls-left {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .controls-right {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .ctl {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      min-width: 0;
+      height: clamp(48px, 7.2dvh, 66px);
+      padding: 0 4px;
+      color: var(--text);
+      cursor: pointer;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035));
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      box-shadow:
+        0 8px 20px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+    }
+
+    .ctl:active,
+    .ctl.active {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+      transform: translateY(1px) scale(0.972);
+    }
+
+    .ctl-rotate:active,
+    .ctl-rotate.active {
+      border-color: rgba(129, 140, 248, 0.6);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28), 0 0 22px rgba(129, 140, 248, 0.18);
+    }
+
+    .ctl-drop:active,
+    .ctl-drop.active {
+      border-color: rgba(94, 234, 212, 0.65);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28), 0 0 22px rgba(94, 234, 212, 0.2);
+    }
+
+    .ctl-hold:active,
+    .ctl-hold.active {
+      border-color: rgba(240, 217, 17, 0.55);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28), 0 0 22px rgba(240, 217, 17, 0.16);
+    }
+
+    .ctl .glyph {
+      font-size: clamp(20px, 3.6dvh, 28px);
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .ctl .caption {
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+
+    .hint {
+      flex: 0 0 auto;
+      margin: 0 auto;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .hint .sep {
+      margin: 0 4px;
+      opacity: 0.5;
+    }
+
+    .hint kbd {
+      display: inline-block;
+      min-width: 20px;
+      padding: 1px 5px;
+      color: #dbe3ff;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+    }
+
+    /* Loading screen ------------------------------------------------------ */
+
+    .loading {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(900px 600px at 50% 30%, rgba(99, 102, 241, 0.22), transparent 65%),
+        #0b1020;
+      transition: opacity 0.35s ease, visibility 0.35s ease;
+    }
+
+    .loading.hidden {
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      padding: 24px;
+    }
+
+    .brand-large {
+      font-size: clamp(24px, 5vw, 34px);
+    }
+
+    .brand-large .brand-mark {
+      grid-template-columns: repeat(2, 10px);
+      grid-template-rows: repeat(2, 10px);
+      gap: 3px;
+    }
+
+    .spinner {
+      width: 42px;
+      height: 42px;
+      border: 3px solid rgba(255, 255, 255, 0.12);
+      border-top-color: var(--accent);
+      border-right-color: var(--accent-2);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    .progress {
+      width: min(240px, 60vw);
+      height: 6px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+    }
+
+    .progress span {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-2), var(--accent));
+      border-radius: inherit;
+      transition: width 0.25s ease;
+    }
+
+    #loading-status {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .noscript {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--text);
+      text-align: center;
+      background: var(--bg);
+    }
+
+    /* Touch / small-screen layout ---------------------------------------- */
+
+    @media (hover: none), (pointer: coarse), (max-width: 720px) {
+      .stage {
+        grid-template-areas:
+          "game game"
+          "left right";
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+        align-content: stretch;
+        gap: 14px 18px;
+      }
+
+      .game-frame {
+        grid-area: game;
+        width: min(94vw, calc(100vh - 280px), 800px);
+        width: min(94vw, calc(100dvh - 280px), 800px);
+      }
+
+      .controls {
+        display: grid;
+      }
+
+      .controls-left {
+        grid-area: left;
+        justify-self: end;
+        width: min(46vw, 220px);
+      }
+
+      .controls-right {
+        grid-area: right;
+        justify-self: start;
+        width: min(46vw, 220px);
+      }
+
+      .hint {
+        display: none;
+      }
+    }
+
+    @media (orientation: landscape) and (max-height: 900px) and (hover: none),
+           (orientation: landscape) and (max-height: 900px) and (pointer: coarse),
+           (orientation: landscape) and (max-height: 900px) and (max-width: 720px) {
+      .app {
+        gap: 8px;
+        padding:
+          max(8px, env(safe-area-inset-top))
+          max(12px, env(safe-area-inset-right))
+          max(8px, env(safe-area-inset-bottom))
+          max(12px, env(safe-area-inset-left));
+      }
+
+      .topbar {
+        max-width: none;
+      }
+
+      .brand {
+        font-size: 16px;
+        letter-spacing: 0.18em;
+      }
+
+      .brand-mark {
+        grid-template-columns: repeat(2, 6px);
+        grid-template-rows: repeat(2, 6px);
+      }
+
+      .stage {
+        grid-template-areas: "left game right";
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-rows: minmax(0, 1fr);
+        gap: 14px;
+      }
+
+      .game-frame {
+        grid-area: game;
+        width: min(calc(100vh - 100px), calc(100vw - 320px), 800px);
+        width: min(calc(100dvh - 100px), calc(100vw - 320px), 800px);
+      }
+
+      .controls {
+        display: grid;
+      }
+
+      .controls-left {
+        grid-area: left;
+        grid-template-columns: 1fr;
+        width: 64px;
+      }
+
+      .controls-right {
+        grid-area: right;
+        width: 140px;
+      }
+
+      .hint {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        TETRIS
+      </div>
+      <div class="topbar-actions">
+        <button type="button" id="pause-button" class="icon-button" data-action="pause" aria-label="Pause" title="Pause">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"></rect>
+            <rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"></rect>
+          </svg>
+        </button>
+        <button type="button" id="fullscreen-button" class="icon-button" aria-label="Enter fullscreen" title="Fullscreen">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div class="game-frame">
+        <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1" aria-label="Tetris game board"></canvas>
+      </div>
+
+      <div class="controls controls-left" aria-label="Movement controls">
+        <button type="button" class="ctl" data-action="left" aria-label="Move left">
+          <span class="glyph">←</span>
+        </button>
+        <button type="button" class="ctl" data-action="down" aria-label="Soft drop">
+          <span class="glyph">↓</span>
+        </button>
+        <button type="button" class="ctl" data-action="right" aria-label="Move right">
+          <span class="glyph">→</span>
+        </button>
+      </div>
+
+      <div class="controls controls-right" aria-label="Action controls">
+        <button type="button" class="ctl ctl-rotate" data-action="rotate-ccw" aria-label="Rotate counter-clockwise">
+          <span class="glyph">↺</span>
+        </button>
+        <button type="button" class="ctl ctl-rotate" data-action="rotate-cw" aria-label="Rotate clockwise">
+          <span class="glyph">↻</span>
+        </button>
+        <button type="button" class="ctl ctl-hold" data-action="hold" aria-label="Hold piece">
+          <span class="glyph">H</span>
+          <span class="caption">HOLD</span>
+        </button>
+        <button type="button" class="ctl ctl-drop" data-action="drop" aria-label="Hard drop">
+          <span class="glyph">⇓</span>
+          <span class="caption">DROP</span>
+        </button>
+      </div>
+    </main>
+
+    <p class="hint">
+      <kbd>←</kbd><kbd>→</kbd> move
+      <span class="sep">·</span>
+      <kbd>↓</kbd> soft drop
+      <span class="sep">·</span>
+      <kbd>Space</kbd> hard drop
+      <span class="sep">·</span>
+      <kbd>R</kbd>/<kbd>E</kbd> rotate
+      <span class="sep">·</span>
+      <kbd>C</kbd> hold
+      <span class="sep">·</span>
+      <kbd>Esc</kbd> pause
+    </p>
+  </div>
+
+  <div id="loading" class="loading" role="status" aria-live="polite">
+    <div class="loading-inner">
+      <div class="brand brand-large">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        TETRIS
+      </div>
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="progress"><span id="progress-bar"></span></div>
+      <p id="loading-status">Loading…</p>
+    </div>
+  </div>
+
+  <noscript>
+    <div class="noscript">This game needs JavaScript and WebGL.<br>Please enable JavaScript and reload.</div>
+  </noscript>
+
+  <script>
+    var statusElement = document.getElementById('loading-status');
+    var progressBar = document.getElementById('progress-bar');
+    var loadingElement = document.getElementById('loading');
+    var canvasElement = document.getElementById('canvas');
+    var progress = 0;
+
+    function setProgress(value) {
+      progress = Math.max(progress, value);
+      progressBar.style.width = progress + '%';
+    }
+
+    function hideLoading() {
+      if (!loadingElement) return;
+      loadingElement.classList.add('hidden');
+      document.body.classList.add('ready');
+    }
+
+    function setStatus(text) {
+      if (!text) {
+        hideLoading();
+        return;
+      }
+
+      var match = /\((\d+)\/(\d+)\)/.exec(text);
+      if (match) {
+        setProgress(100 * parseInt(match[1], 10) / parseInt(match[2], 10));
+      }
+
+      // Keep toolchain messages off the page; show a friendly status instead.
+      if (/error|exception|failed/i.test(text)) {
+        statusElement.textContent = 'Something went wrong. Please refresh.';
+      } else {
+        statusElement.textContent = 'Loading…';
+      }
+    }
+
+    var Module = {
+      canvas: canvasElement,
+      print: function () {
+        console.log.apply(console, arguments);
+      },
+      printErr: function () {
+        console.error.apply(console, arguments);
+      },
+      setStatus: setStatus,
+      totalDependencies: 0,
+      monitorRunDependencies: function (left) {
+        this.totalDependencies = Math.max(this.totalDependencies, left);
+        setStatus(left
+          ? 'Preparing... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')'
+          : 'All downloads complete.');
+      },
+      onRuntimeInitialized: function () {
+        setProgress(100);
+        requestAnimationFrame(function () {
+          setTimeout(hideLoading, 150);
+        });
+      }
+    };
+
+    window.onerror = function () {
+      statusElement.textContent = 'Something went wrong. Please refresh.';
+    };
+
+    window.addEventListener('unhandledrejection', function () {
+      statusElement.textContent = 'Something went wrong. Please refresh.';
+    });
+
+    canvasElement.addEventListener('webglcontextlost', function (event) {
+      event.preventDefault();
+      statusElement.textContent = 'The graphics context was lost. Please refresh.';
+      loadingElement.classList.remove('hidden');
+    }, false);
+
+    (function () {
+      // Keep in sync with enum TouchAction in Tetris/main.c.
+      var ACTIONS = {
+        'left': 0,
+        'right': 1,
+        'down': 2,
+        'rotate-cw': 3,
+        'rotate-ccw': 4,
+        'drop': 5,
+        'hold': 6,
+        'pause': 7
+      };
+
+      var controls = [];
+
+      function setAction(action, pressed) {
+        if (Module._setTouchAction) {
+          Module._setTouchAction(action, pressed ? 1 : 0);
+        }
+      }
+
+      document.querySelectorAll('[data-action]').forEach(function (el) {
+        var action = ACTIONS[el.getAttribute('data-action')];
+        if (action === undefined) return;
+
+        var pressed = false;
+
+        function press(event) {
+          event.preventDefault();
+          if (pressed) return;
+          pressed = true;
+          el.classList.add('active');
+
+          if (el.setPointerCapture) {
+            try {
+              el.setPointerCapture(event.pointerId);
+            } catch (e) {
+              // Ignore capture failures; pointerup/cancel still release below.
+            }
+          }
+
+          setAction(action, true);
+        }
+
+        function release(event) {
+          if (event) event.preventDefault();
+          if (!pressed) return;
+          pressed = false;
+          el.classList.remove('active');
+          setAction(action, false);
+        }
+
+        el.addEventListener('pointerdown', press);
+        el.addEventListener('pointerup', release);
+        el.addEventListener('pointercancel', release);
+        el.addEventListener('pointerleave', release);
+        el.addEventListener('lostpointercapture', release);
+        el.addEventListener('contextmenu', function (event) {
+          event.preventDefault();
+        });
+
+        controls.push({ release: release });
+      });
+
+      function releaseAll() {
+        controls.forEach(function (control) {
+          control.release();
+        });
+      }
+
+      window.addEventListener('blur', releaseAll);
+      window.addEventListener('pagehide', releaseAll);
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) releaseAll();
+      });
+
+      var fullscreenButton = document.getElementById('fullscreen-button');
+
+      if (!document.documentElement.requestFullscreen) {
+        fullscreenButton.hidden = true;
+      } else {
+        fullscreenButton.addEventListener('click', function () {
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(function () {});
+          } else {
+            document.documentElement.requestFullscreen().catch(function () {});
+          }
+        });
+
+        document.addEventListener('fullscreenchange', function () {
+          var isFullscreen = !!document.fullscreenElement;
+          fullscreenButton.classList.toggle('active', isFullscreen);
+          fullscreenButton.setAttribute('aria-label', isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen');
+        });
+      }
+    })();
+  </script>
+
+  {{{ SCRIPT }}}
+</body>
+</html>
